@@ -1,9 +1,52 @@
 observeEvent(input$sideBarTab, {
   if (input$sideBarTab == 'route') {
     GLOBAL_VALUE$signateDetail <- fread(file = paste0(DATA_PATH, 'resultSignateDetail.csv'))
+    GLOBAL_VALUE$signateDetail$公表日 <- as.Date(GLOBAL_VALUE$signateDetail$公表日)
     GLOBAL_VALUE$signateLink <- fread(file = paste0(DATA_PATH, 'resultSignateLink.csv'))
   }
 })
+
+output$clusterDateRangeSelector <- renderUI({
+  node <- clusterData()$node
+  if (!is.null(node) && nrow(node) > 0) {
+      dateRangeInput(
+        'clusterDateRange',
+        label = '公表日',
+        start = Sys.Date() - 14, 
+        end = Sys.Date(),
+        min = min(node$公表日, na.rm = T), 
+        max = Sys.Date(),
+        separator = " - ", 
+        format = "yyyy年m月d日",
+        language = 'ja'
+    )
+  } else {
+    tagList(tags$b('該当地域には感染者が確認されていません。またはデータの更新が必要です。'))
+  }
+})
+
+# output$clusterDateRangeFocus <- renderUI({
+#   node <- clusterData()$node
+#   if (!is.null(node) && nrow(node) > 0) {
+#     actionButton(
+#       inputId = 'focusClusterDateRange',
+#       label = 'フォーカス'
+#     )
+#   }
+# })
+# 
+# observeEvent(input$focusClusterDateRange, {
+#   # フォーカス感染者
+#   idIndex <- clusterData()$node[公表日 >= input$clusterDateRange[1] & 公表日 <= input$clusterDateRange[2], which = T] - 1
+#   print(idIndex)
+#   echarts4rProxy('clusterNetwork') %>% 
+#     e_focus_adjacency_p(seriesIndex = 0, 
+#                         index = c(173, 174)
+#     ) %>% 
+#     e_focus_adjacency_p(seriesIndex = 1, 
+#                         index = 173
+#     )
+# })
 
 clusterData <- reactive({
   # フィルター
@@ -12,6 +55,10 @@ clusterData <- reactive({
     linkFilter <- GLOBAL_VALUE$signateLink[`id1-1` %in% prefCode | `id2-1` %in% prefCode]
     idFilter <-  unique(c(linkFilter$罹患者id1, linkFilter$罹患者id2))
     signateDetailFilter <- GLOBAL_VALUE$signateDetail[罹患者id %in% idFilter | 都道府県コード %in% prefCode]
+    # 日付フィルター
+    if(!is.null(input$clusterDateRange)) {
+      signateDetailFilter <- signateDetailFilter[公表日 >= input$clusterDateRange[1] & 公表日 <= input$clusterDateRange[2]]
+    }
     return(list(node = signateDetailFilter, edge = linkFilter))
   } else {
     return(list(node = NULL, edge = NULL))
